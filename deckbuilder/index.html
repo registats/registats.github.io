@@ -1,0 +1,280 @@
+<script type="text/javascript" src="jquery-1.11.0.min.js"></script>
+<script type="text/javascript" src="passcodes.js"></script>
+<script type="text/javascript" src="random.js"></script>
+<script type="text/javascript">
+
+	var mainString = "#created by deckbuilder\r\n#main\r\n";
+	var extraStirng = "#extra\r\n";
+	var sideString = "!side\r\n"
+	var finalString = "";
+
+	$(document).ready(function() {
+		$('#usernameInput').keyup(function(event) {
+			if (event.keyCode === 13) {
+				event.preventDefault();
+				$("#genDeckBtn").click();
+			}
+		});
+	});
+
+	function genNextCard(rand, i, ie, is) {
+		
+		var rndIndex = Math.floor(rand() * passcodes.length);
+		var pc = passcodes[rndIndex];
+
+		//passcodes that start with 0 should have that 0 removed 
+		if (pc[0] == '0') {
+			pc = pc.substring(1,pc.length);
+		}
+
+		setTimeout(function(pc, i, ie, is) {
+			$.getJSON("https://db.ygoprodeck.com/api/v5/cardinfo.php?name=" + pc, function(data) {
+				
+				var whereToPutIt = '#main';
+				
+				if (data[0]["type"] == "Token" || 
+				data[0]["type"] == "Skill Card" || 
+				data[0]["desc"].includes("win the Match")) {
+					console.log("Illegal card (" +pc+ "), skipping...");
+					genNextCard(rand, i, ie, is);
+					return;
+				}
+
+				if (data[0]["type"].includes("Synchro") ||
+				data[0]["type"].includes("Fusion") ||
+				data[0]["type"].includes("XYZ") ||
+				data[0]["type"].includes("Link")) {
+					whereToPutIt = '#extra';
+				}
+
+
+				
+
+
+				if (whereToPutIt == '#main') {
+
+					if (i < 40) {
+						$('#main').append(
+							"<a style='text-decoration:none'" +
+							"href='https://db.ygoprodeck.com/card/?search=" + pc + "' target='_blank'> " +
+							"<img " +
+							"src='https://ygoprodeck.com/pics/" + pc + ".jpg' " +
+							"height='80' " +
+							"onmouseover='setBigImg(\""+pc+"\")'" + 
+							"/>" +
+							"<\a>"
+						);
+
+						i++;
+						if ((i) % 10 == 0) {
+							$("#main").append("<br\>");
+						}
+
+						mainString += (pc + "\r\n");
+
+					} else if (is < 15) {
+						$('#side').append(
+							"<a style='text-decoration:none'" +
+							"href='https://db.ygoprodeck.com/card/?search=" + pc + "' target='_blank'> " +
+							"<img " +
+							"src='https://ygoprodeck.com/pics/" + pc + ".jpg' " +
+							"height='80' " +
+							"onmouseover='setBigImg(\""+pc+"\")'" + 
+							"/>" +
+							"</a>"
+						);
+
+						is++;
+						if ((is) % 10 == 0) {
+							$("#side").append("<br\>");
+						}
+
+						sideString += (pc + "\r\n");
+					}
+
+				} else if (whereToPutIt == '#extra' && ie < 15) {
+
+					$('#extra').append(
+						"<a style='text-decoration:none'" +
+						"href='https://db.ygoprodeck.com/card/?search=" + pc + "' target='_blank'> " +
+						"<img " +
+						"src='https://ygoprodeck.com/pics/" + pc + ".jpg' " +
+						"height='80' " +
+						"onmouseover='setBigImg(\""+pc+"\")'" + 
+						"/>" +
+						"</a>"
+					);
+
+					ie++;
+					if ((ie) % 10 == 0) {
+						$("#extra").append("<br\>");
+					}
+					extraStirng += (pc + "\r\n");
+				}
+			
+				if (i < 40  || ie < 15 || is < 15) {
+					$('#msg').text("Building Deck ... (m"+i+"/e"+ie+"/s"+is+")");
+					genNextCard(rand, i, ie, is);
+				} else {
+					finalString = mainString + extraStirng + sideString;
+					$('#downloadDeckBtn').css('display', 'block');
+
+					$('#msg').text("Done!");
+				}
+			});
+		}, 100, pc, i, ie, is);
+		//20 calls allowed per second
+		//=> 50ms timeout
+		//(i use 100ms just to be sure)
+		//(generates 10 cards per second)
+	}
+
+	function getNextCardPack(rand, i) {
+
+		var rndIndex = Math.floor(rand() * passcodes.length);
+		var pc = passcodes[rndIndex];
+
+		if (pc[0] == '0') {
+			pc = pc.substring(1,pc.length);
+		}
+
+		setTimeout(function(pc, i) {
+			$.getJSON("https://db.ygoprodeck.com/api/v5/cardinfo.php?name=" + pc, function(data) {
+				
+				var whereToPutIt = '#main';
+				
+				if (data[0]["type"] == "Token" || 
+				data[0]["type"] == "Skill Card" || 
+				data[0]["desc"].includes("win the Match")) {
+					console.log("Illegal card (" +pc+ "), skipping...");
+					getNextCardPack(rand, i);
+					return;
+				}
+
+				//rare card
+				if (i == 4 && parseInt(data[0].views) < 60000) {
+					console.log("Not a rare card (" + pc + "), skipping...");
+					getNextCardPack(rand, i);
+					return;
+				}
+
+				$('#main').append(
+					"<a style='text-decoration:none'" +
+					"href='https://db.ygoprodeck.com/card/?search=" + pc + "' target='_blank'> " +
+					"<img " +
+					"src='https://ygoprodeck.com/pics/" + pc + ".jpg' " +
+					"height='80' " +
+					"onmouseover='setBigImg(\""+pc+"\")'" + 
+					"/>" +
+					"</a>"
+				);
+
+				$('#packList').append(
+					"<li>"+data[0]["name"]+"</li>"
+				);
+
+				i++;
+
+				if (i < 5) {
+					getNextCardPack(rand, i);
+				} else {
+					var packNum = parseInt($('#packNumber').val());
+					$('#msg').text("Pack #" + packNum + " opened!");
+					$('#packNumber').val(packNum + 1);
+				}
+
+			});
+		}, 100, pc, i);
+	}
+
+
+	function genDeck() {
+
+		if ($.trim($('#usernameInput').val()) == '') {
+			alert("Enter username!");
+			return;
+		}
+
+        var name = $('#usernameInput').val();
+
+		var seed = xmur3(name);
+		var rand = sfc32(seed(), seed(), seed(), seed());
+
+		$('#main').empty();
+		$('#extra').empty();
+		$('#side').empty();
+		$('#downloadDeckBtn').css('display', 'none');
+		$('#msg').text("Building Deck...");
+		$('#packList').empty();
+
+		genNextCard(rand, 0, 0, 0);
+		
+	}
+
+	function genPack() {
+
+		if ($.trim($('#usernameInput').val()) == '') {
+			alert("Enter username!");
+			return;
+		}
+
+        var name = $('#usernameInput').val() + $('#packNumber').val().toString();
+
+		var seed = xmur3(name);
+		var rand = sfc32(seed(), seed(), seed(), seed());
+
+		$('#main').empty();
+		$('#extra').empty();
+		$('#side').empty();
+		$('#downloadDeckBtn').css('display', 'none');
+		var packNum = parseInt($('#packNumber').val());
+		$('#msg').text("Opening pack #"+packNum+" ...");
+		$('#packList').empty();
+
+		getNextCardPack(rand, 0);
+	}
+
+	function setBigImg(pc) {
+		$('#bigImg').prop('src', 'https://ygoprodeck.com/pics/' + pc + '.jpg');
+	}
+
+	function downloadDeck() {
+		var element = document.createElement('a');
+		element.setAttribute('href', 'data:text/plain;charset=utf-8,' + encodeURIComponent(finalString));
+		element.setAttribute('download', "deck.ydk");
+		element.style.display = 'none';
+		document.body.appendChild(element);
+		element.click();
+		document.body.removeChild(element);
+  	}
+
+</script>
+
+<html>
+<head>
+	<title>Deck Builder</title>
+</head>
+<body>
+	<div
+		style='position:absolute; left:680'>
+		<a 
+			target='_blank'
+			href='https://github.com/medicalmess/deckbuilder'>source on github</a>
+		<br/>	
+		<img 
+			id='bigImg' height="500" />
+	</div>
+	<span>Post number: </span>
+	<input type='text' id='usernameInput'/>
+	<button id='genDeckBtn' onclick='genDeck()'>Build Deck</button>
+	<input id='packNumber' type="number" min="1" value="1" style='width: 60;'>
+	<button id='genPackBtn' onclick='genPack()'>Open a Pack</button>
+	<div style='margin-top:5px;'></div>
+	<div id='main'></div><br/>
+	<div id='extra'></div><br/>
+	<div id='side'></div><br/>
+	<span id='msg'></span><br/>
+	<ul id='packList' style='list-style-type: none; padding-left: 0px;'></ul>
+	<button id='downloadDeckBtn' onclick='downloadDeck()' style="display:none;">Download Deck</button><br/>
+</body>
+</html>
